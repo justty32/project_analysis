@@ -1,0 +1,28 @@
+routes:
+  # Ollama 本地模型 — chat 類型
+  - match:
+      op_type: chat
+      provider: ollama
+    module: ollama_connector
+
+  # Gemini Cloud — chat 類型（第二階段實作）
+  - match:
+      op_type: chat
+      provider: gemini
+    module: gemini_connector
+
+  # 腳本執行（第三階段實作）
+  - match:
+      op_type: script_exec
+    module: python_executor
+
+  # Claude Agent（第二階段實作）
+  - match:
+      op_type: agent_run
+      provider: claude
+    module: claude_wrapper
+
+  # 預設 chat — 無指定 provider 時走 Ollama
+  - match:
+      op_type: chat
+    module: ollama_connector
