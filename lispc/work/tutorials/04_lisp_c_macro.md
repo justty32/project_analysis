@@ -3,16 +3,18 @@
 這是 LISP/c 最強大的地方：**在 C 程式碼生成之前，先執行 Lisp 運算。**
 
 ## 1. Template vs. Lisp/C-Macro
-*   **Template (模板)**：簡單的文字/語法替換。類似 C++ 的 Template 或進階版的 `#define`。
-*   **Lisp/C-Macro**：它是一個**真正的 Common Lisp 函數**。它在翻譯時運行，可以做遞迴、條件判斷、清單處理，最後回傳一個「語法樹」給編譯器。
+*   **Template (模板)**（`c.lisp:701`）：簡單的文字/語法替換，底層使用 `replacify`（`c.lisp:397`）。類似 C++ 的 Template 或進階版的 `#define`。
+*   **Lisp/C-Macro**（Lisp 巨集定義 `c.lisp:44`，LISP/c 翻譯函式 `c.lisp:694`）：它是一個**真正的 Common Lisp 函數**。它在翻譯時運行，可以做遞迴、條件判斷、清單處理，最後回傳一個「語法樹」給編譯器。
 
 ## 2. 語法結構
+（`lisp/c-macro` → `c.lisp:44` 和 `c.lisp:694`）
 ```lisp
 (lisp/c-macro [名稱] ([參數])
     (Lisp 代碼...))
 ```
 
 ## 3. 經典範例：自動生成巢狀迴圈 (Loop Unrolling)
+（`for` → `c.lisp:506`，`var` → `c.lisp:555`，`++` 前置 → `c.lisp:447`）
 假設您需要生成 5 層巢狀迴圈，手寫很累。我們可以用宏來遞迴生成：
 
 ```lisp
@@ -30,6 +32,7 @@
 **翻譯後的 C 程式碼：** 會自動產生三層 `for` 迴圈。
 
 ## 4. 範例：根據清單自動生成 Struct 成員
+（`struct` → `c.lisp:569`，`var` → `c.lisp:555`，`t*`/`typ*` → `c.lisp:473`）
 如果您有一組設定清單，想自動生成對應的變數宣告：
 
 ```lisp
