@@ -1,0 +1,24 @@
+// Test Escapes
+print "Line1\nLine2"
+print "Tab\tSeparated"
+print "Escaped Quote: \"Hello\""
+
+// Test Multi-line String
+print "This is a
+multi-line
+string"
+
+// Test Backslash Continuation inside String
+print "Part 1 \
+Part 2 \
+Part 3"
+
+// Test Backslash Continuation outside (logical line merging)
+print \
+    "Merged Line"
+
+// Complex mix
+def long_str "First \
+Second
+Third"
+print long_str

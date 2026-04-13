@@ -163,7 +163,33 @@ Value Parser::parsePrimary() {
     if (match(TokenType::LBRACE)) return parseDictOrSet();
 
     const Token& t = advance();
-    if (t.type == TokenType::STRING) return Value::makeList({Value::makeAtom("str"), Value::makeAtom(t.value)});
+    if (t.type == TokenType::STRING) {
+        std::list<Value> strList;
+        strList.push_back(Value::makeAtom("str"));
+        
+        std::string val = t.value;
+        std::string current;
+        for (size_t i = 0; i < val.length(); ++i) {
+            if (val[i] == ' ') {
+                if (!current.empty()) {
+                    strList.push_back(Value::makeAtom(current));
+                    current.clear();
+                }
+                int count = 0;
+                while (i < val.length() && val[i] == ' ') {
+                    count++;
+                    i++;
+                }
+                i--; // Step back for loop increment
+                std::list<Value> spaceList = {Value::makeAtom("ntimes_space"), Value::makeNumber(count)};
+                strList.push_back(Value::makeList(spaceList));
+            } else {
+                current += val[i];
+            }
+        }
+        if (!current.empty()) strList.push_back(Value::makeAtom(current));
+        return Value::makeList(strList);
+    }
     if (t.type == TokenType::ATOM) return Value::makeAtom(t.value);
     
     throw std::runtime_error("Unexpected token in parsePrimary: " + t.value);

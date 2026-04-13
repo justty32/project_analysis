@@ -199,6 +199,13 @@ void Evaluator::initGlobalEnv(std::shared_ptr<Environment>& env) {
         for (const auto& a : args) last = Evaluator::evaluate(a, env);
         return last;
     }));
+    env->define("ntimes_space", Value::makeFunc([](std::shared_ptr<Environment>&, const std::vector<Value>& args) {
+        if (args.empty() || args[0].type != Value::Type::NUMBER) return Value::makeString("");
+        int n = (int)args[0].as<double>();
+        if (n <= 0) return Value::makeString("");
+        return Value::makeString(std::string(n, ' '));
+    }));
+
     env->define("def", Value::makeMacro(builtin_def));
     env->define("lambda", Value::makeMacro(builtin_lambda));
     env->define("def_macro", Value::makeMacro(builtin_def_macro));

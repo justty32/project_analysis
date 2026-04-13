@@ -121,23 +121,41 @@ std::vector<std::vector<Token>> Lexer::tokenize() {
 }
 
 Token Lexer::readString(bool spaceBefore) {
-    advance();
+    advance(); // Skip opening quote
     std::string value;
-    while (!isAtEnd() && peek() != '"' && peek() != '\n') {
-        if (peek() == '\\') {
+    while (!isAtEnd()) {
+        char c = peek();
+        if (c == '"') {
             advance();
-            if (!isAtEnd()) {
-                char esc = advance();
-                if (esc == 'n') value += '\n';
-                else if (esc == 't') value += '\t';
-                else if (esc == 'r') value += '\r';
-                else value += esc;
+            break;
+        }
+        if (c == '\\') {
+            advance();
+            if (isAtEnd()) break;
+            char next = peek();
+            if (next == '\n') {
+                // Line continuation: skip backslash and newline
+                advance();
+                line_++;
+                continue;
             }
+            if (next == '\r') {
+                advance();
+                if (!isAtEnd() && peek() == '\n') advance();
+                line_++;
+                continue;
+            }
+            // Normal escape
+            char esc = advance();
+            if (esc == 'n') value += '\n';
+            else if (esc == 't') value += '\t';
+            else if (esc == 'r') value += '\r';
+            else value += esc;
         } else {
+            if (c == '\n') line_++;
             value += advance();
         }
     }
-    if (!isAtEnd() && peek() == '"') advance(); 
     return {TokenType::STRING, value, line_, indent_, spaceBefore};
 }
 
