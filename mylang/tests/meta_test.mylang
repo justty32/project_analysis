@@ -1,0 +1,11 @@
+def x 10
+def y 20
+print "x + y =" (+ x y)
+
+print "--- Generating C++ Code ---"
+
+"#include <iostream>"
+"int main() {"
+"    std::cout << \"Hello from mylang!\" << std::endl;"
+"    return 0;"
+"}"

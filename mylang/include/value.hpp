@@ -18,23 +18,33 @@ using NativeFunc = std::function<Value(Environment&, const std::vector<Value>&)>
 
 struct Value {
     enum class Type {
+        NIL,
         LIST,
         ARRAY,
         DICT,
         SET,
         STRING,
-        NUMBER,
+        NUMBER, // Only used for evaluated results
         ATOM,
         FUNC,
-        MACRO
+        MACRO,
+        USER_FUNC,
+        USER_MACRO
     };
 
     std::any data;
     Type type;
 
     template<typename T>
-    T as() const { return std::any_cast<T>(data); }
+    T as() const { 
+        try {
+            return std::any_cast<T>(data); 
+        } catch (const std::bad_any_cast&) {
+            throw std::runtime_error("Invalid type cast for Value");
+        }
+    }
 
+    static Value makeNil() { return {std::any(), Type::NIL}; }
     static Value makeNumber(double d) { return {d, Type::NUMBER}; }
     static Value makeString(const std::string& s) { return {s, Type::STRING}; }
     static Value makeAtom(const std::string& s) { return {s, Type::ATOM}; }
@@ -48,5 +58,6 @@ struct Value {
 };
 
 bool operator<(const Value& lhs, const Value& rhs);
+bool operator==(const Value& lhs, const Value& rhs);
 
 #endif

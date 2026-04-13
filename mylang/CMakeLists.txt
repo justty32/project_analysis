@@ -6,13 +6,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include_directories(include)
 
-# Only compile files needed for Parser testing
-set(SOURCES 
-    src/main.cpp 
-    src/lexer.cpp 
-    src/parser.cpp 
-    src/value.cpp
-)
+# Automatically find all source files
+file(GLOB_RECURSE SOURCES "src/*.cpp")
 
 add_executable(mylang ${SOURCES})
 

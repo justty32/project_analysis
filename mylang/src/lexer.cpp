@@ -1,11 +1,21 @@
 #include "lexer.hpp"
 #include <cctype>
 
+int Lexer::countLeadingTabs() {
+    int count = 0;
+    while (!isAtEnd() && peek() == '\t') {
+        count++;
+        advance();
+    }
+    return count;
+}
+
 std::vector<std::vector<Token>> Lexer::tokenize() {
     std::vector<std::vector<Token>> logicalLines;
     std::vector<Token> currentLine;
     int bracketDepth = 0;
     bool hasSpace = false;
+    bool atLineStart = true;
 
     auto pushToken = [&](Token t) {
         if (t.type == TokenType::LPAREN || t.type == TokenType::LBRACKET || t.type == TokenType::LBRACE) {
@@ -15,19 +25,24 @@ std::vector<std::vector<Token>> Lexer::tokenize() {
         }
         currentLine.push_back(t);
         hasSpace = false;
+        atLineStart = false;
     };
 
     while (!isAtEnd()) {
+        if (atLineStart && bracketDepth == 0) {
+            indent_ = countLeadingTabs();
+            atLineStart = false;
+            if (isAtEnd()) break;
+        }
+
         char c = peek();
 
-        // 1. Whitespace (except newline)
         if (std::isspace(c) && c != '\n') {
             hasSpace = true;
             advance();
             continue;
         }
 
-        // 2. Newline
         if (c == '\n') {
             advance();
             if (bracketDepth == 0 && !currentLine.empty()) {
@@ -36,10 +51,10 @@ std::vector<std::vector<Token>> Lexer::tokenize() {
             }
             line_++;
             hasSpace = true;
+            atLineStart = true;
             continue;
         }
 
-        // 3. Comments
         if (c == '/' && (peekNext() == '/' || peekNext() == '*')) {
             hasSpace = true;
             if (peekNext() == '/') {
@@ -59,45 +74,38 @@ std::vector<std::vector<Token>> Lexer::tokenize() {
             continue;
         }
 
-        // 4. Double Quote
         if (c == '"') {
             pushToken(readString(hasSpace));
             continue;
         }
 
-        // 5. Single Quote
         if (c == '\'') {
-            pushToken({TokenType::QUOTE, std::string(1, advance()), line_, hasSpace});
+            pushToken({TokenType::QUOTE, std::string(1, advance()), line_, indent_, hasSpace});
             continue;
         }
 
-        // 6. Special Symbols (Removed DOT)
-        if (c == '(') { pushToken({TokenType::LPAREN, std::string(1, advance()), line_, hasSpace}); continue; }
-        if (c == ')') { pushToken({TokenType::RPAREN, std::string(1, advance()), line_, hasSpace}); continue; }
-        if (c == '[') { pushToken({TokenType::LBRACKET, std::string(1, advance()), line_, hasSpace}); continue; }
-        if (c == ']') { pushToken({TokenType::RBRACKET, std::string(1, advance()), line_, hasSpace}); continue; }
-        if (c == '{') { pushToken({TokenType::LBRACE, std::string(1, advance()), line_, hasSpace}); continue; }
-        if (c == '}') { pushToken({TokenType::RBRACE, std::string(1, advance()), line_, hasSpace}); continue; }
-        if (c == ':') { pushToken({TokenType::COLON, std::string(1, advance()), line_, hasSpace}); continue; }
-        if (c == ',') { pushToken({TokenType::COMMA, std::string(1, advance()), line_, hasSpace}); continue; }
+        if (c == '(') { pushToken({TokenType::LPAREN, std::string(1, advance()), line_, indent_, hasSpace}); continue; }
+        if (c == ')') { pushToken({TokenType::RPAREN, std::string(1, advance()), line_, indent_, hasSpace}); continue; }
+        if (c == '[') { pushToken({TokenType::LBRACKET, std::string(1, advance()), line_, indent_, hasSpace}); continue; }
+        if (c == ']') { pushToken({TokenType::RBRACKET, std::string(1, advance()), line_, indent_, hasSpace}); continue; }
+        if (c == '{') { pushToken({TokenType::LBRACE, std::string(1, advance()), line_, indent_, hasSpace}); continue; }
+        if (c == '}') { pushToken({TokenType::RBRACE, std::string(1, advance()), line_, indent_, hasSpace}); continue; }
+        if (c == ':') { pushToken({TokenType::COLON, std::string(1, advance()), line_, indent_, hasSpace}); continue; }
+        if (c == ',') { pushToken({TokenType::COMMA, std::string(1, advance()), line_, indent_, hasSpace}); continue; }
 
-        // 7. Backslash (Highest Priority / Line Continuation)
         if (c == '\\') {
-            advance(); // consume \
-            if (isAtEnd()) break;
-            if (peek() == '\n') {
-                advance(); line_++; hasSpace = true; continue; // Continuation with a space
+            if (peekNext() == '\n') {
+                advance(); advance(); line_++; hasSpace = true; continue; 
             }
-            if (peek() == '\r') {
-                advance();
-                if (peek() == '\n') { advance(); line_++; hasSpace = true; continue; }
+            if (peekNext() == '\r') {
+                advance(); advance();
+                if (peek() == '\n') advance();
+                line_++; hasSpace = true; continue;
             }
-            pos_--; // backtrack to \ and let readAtom handle it as an escaped char
             pushToken(readAtom(hasSpace));
             continue;
         }
 
-        // 8. Atoms (Now handles '.' as normal char)
         if (!isAtEnd() && !std::isspace(c)) {
             pushToken(readAtom(hasSpace));
         } else if (!isAtEnd()) {
@@ -113,7 +121,7 @@ std::vector<std::vector<Token>> Lexer::tokenize() {
 }
 
 Token Lexer::readString(bool spaceBefore) {
-    advance(); // consume "
+    advance();
     std::string value;
     while (!isAtEnd() && peek() != '"' && peek() != '\n') {
         if (peek() == '\\') {
@@ -129,8 +137,8 @@ Token Lexer::readString(bool spaceBefore) {
             value += advance();
         }
     }
-    if (!isAtEnd() && peek() == '"') advance(); // consume "
-    return {TokenType::STRING, value, line_, spaceBefore};
+    if (!isAtEnd() && peek() == '"') advance(); 
+    return {TokenType::STRING, value, line_, indent_, spaceBefore};
 }
 
 Token Lexer::readAtom(bool spaceBefore) {
@@ -138,15 +146,21 @@ Token Lexer::readAtom(bool spaceBefore) {
     while (!isAtEnd()) {
         char c = peek();
         if (c == '\\') {
-            advance(); // consume \
+            advance();
             if (isAtEnd()) break;
             if (peek() == '\n') {
-                advance(); line_++; continue; // Continuation
+                advance(); line_++; 
+                value += ' ';
+                continue; 
+            }
+            if (peek() == '\r') {
+                advance();
+                if (peek() == '\n') advance();
+                line_++; value += ' '; continue;
             }
             value += advance();
             continue;
         }
-        // Removed '.' from delimiter list
         if (std::isspace(c) || c == '\'' || c == '"' || c == '(' || c == ')' || 
             c == '[' || c == ']' || c == '{' || c == '}' || c == ':' || c == ',') {
             break;
@@ -156,5 +170,5 @@ Token Lexer::readAtom(bool spaceBefore) {
         }
         value += advance();
     }
-    return {TokenType::ATOM, value, line_, spaceBefore};
+    return {TokenType::ATOM, value, line_, indent_, spaceBefore};
 }

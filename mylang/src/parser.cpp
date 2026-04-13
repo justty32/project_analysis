@@ -3,114 +3,157 @@
 #include <iostream>
 
 std::vector<Value> Parser::parse() {
+    return parseWithIndent(0);
+}
+
+std::vector<Value> Parser::parseWithIndent(int targetIndent) {
     std::vector<Value> results;
     while (linePos_ < lines_.size()) {
-        if (lines_[linePos_].empty()) {
-            linePos_++; pos_ = 0; continue;
+        const auto& lineTokens = lines_[linePos_];
+        if (lineTokens.empty()) {
+            linePos_++; continue;
         }
-        try {
-            results.push_back(parseLine());
-        } catch (const std::exception& e) {
-            std::cerr << "Parser error at line " << linePos_ + 1 << ": " << e.what() << std::endl;
+
+        int currentIndent = lineTokens[0].indent;
+
+        if (currentIndent < targetIndent) {
+            break;
         }
-        linePos_++; pos_ = 0;
+
+        if (currentIndent > targetIndent) {
+            // Jump case: indentation deeper than expected without a parent line
+            std::vector<Value> subResults = parseWithIndent(currentIndent);
+            results.insert(results.end(), subResults.begin(), subResults.end());
+            continue;
+        }
+
+        // currentIndent == targetIndent
+        pos_ = 0;
+        Value currentLineValue = parseLineContent();
+        linePos_++;
+
+        // Attach all subsequent lines that are deeper as children
+        if (linePos_ < lines_.size() && !lines_[linePos_].empty() && lines_[linePos_][0].indent > targetIndent) {
+            std::vector<Value> children = parseWithIndent(targetIndent + 1);
+            
+            std::list<Value> combined;
+            if (currentLineValue.type == Value::Type::LIST) {
+                auto items = currentLineValue.as<std::list<Value>>();
+                combined.assign(items.begin(), items.end());
+            } else {
+                combined.push_back(currentLineValue);
+            }
+            
+            for (auto const& child : children) {
+                combined.push_back(child);
+            }
+            results.push_back(Value::makeList(combined));
+        } else {
+            results.push_back(currentLineValue);
+        }
     }
     return results;
 }
 
-Value Parser::parseLine() {
+Value Parser::parseLineContent() {
     std::list<Value> expressions;
     while (!isAtEndOfLine()) {
         expressions.push_back(parseExpression());
     }
-    if (expressions.empty()) return Value::makeList({});
-    if (expressions.size() == 1) return expressions.front();
+    
+    // If a line is a single list/array/dict, return it directly to avoid double wrapping.
+    // Example: (a b c) on a line should be (a b c), not ((a b c)).
+    if (expressions.size() == 1) {
+        const Value& first = expressions.front();
+        if (first.type == Value::Type::LIST || first.type == Value::Type::ARRAY || 
+            first.type == Value::Type::DICT || first.type == Value::Type::SET) {
+            return first;
+        }
+    }
+    
     return Value::makeList(expressions);
 }
 
 Value Parser::parseExpression() {
-    // 1. Case: Forward Nesting or Symmetry Start
+    Value result;
+
     if (!isAtEndOfLine() && peek().type == TokenType::QUOTE) {
-        advance(); // consume '
+        advance(); 
         
-        // Handle ''
         if (!isAtEndOfLine() && peek().type == TokenType::QUOTE && !peek().hasSpaceBefore) {
             advance();
-            if (isAtEndOfLine() || peek().hasSpaceBefore) return Value::makeList({});
-            return Value::makeList({Value::makeAtom("quote"), parseExpression()});
+            // Check if it's the end of an atom/line or the end of a paren list
+            if (isAtEndOfLine() || peek().hasSpaceBefore || peek().type == TokenType::RPAREN) {
+                result = Value::makeList({});
+            } else {
+                result = Value::makeList({Value::makeAtom("quote"), parseExpression()});
+            }
+        } else {
+            Value first = parsePrimary();
+            if (!isAtEndOfLine() && peek().type == TokenType::QUOTE && !peek().hasSpaceBefore) {
+                std::vector<Value> chain;
+                chain.push_back(first);
+                bool trailingQuote = false;
+
+                while (!isAtEndOfLine() && peek().type == TokenType::QUOTE && !peek().hasSpaceBefore) {
+                    advance();
+                    if (isAtEndOfLine() || peek().hasSpaceBefore || peek().type == TokenType::RPAREN) {
+                        trailingQuote = true; break;
+                    }
+                    chain.push_back(parsePrimary());
+                }
+
+                if (trailingQuote) {
+                    std::list<Value> l;
+                    for (const auto& v : chain) l.push_back(v);
+                    result = Value::makeList(l);
+                } else {
+                    Value node = chain.back();
+                    for (int i = (int)chain.size() - 2; i >= 0; --i) {
+                        node = Value::makeList({chain[i], node});
+                    }
+                    result = node;
+                }
+            } else {
+                result = Value::makeList({Value::makeAtom("quote"), first});
+            }
         }
-        
+    } else {
         Value first = parsePrimary();
         if (!isAtEndOfLine() && peek().type == TokenType::QUOTE && !peek().hasSpaceBefore) {
-            // Middle quote chain: 'A'B...
             std::vector<Value> chain;
             chain.push_back(first);
             bool trailingQuote = false;
 
             while (!isAtEndOfLine() && peek().type == TokenType::QUOTE && !peek().hasSpaceBefore) {
-                advance(); // consume middle '
-                if (isAtEndOfLine() || peek().hasSpaceBefore) {
+                advance();
+                if (isAtEndOfLine() || peek().hasSpaceBefore || peek().type == TokenType::RPAREN) {
                     trailingQuote = true; break;
                 }
                 chain.push_back(parsePrimary());
             }
 
             if (trailingQuote) {
-                // Symmetry: 'A'B'C' -> (A B C) (Flat)
+                if (chain.size() == 1) {
+                    result = Value::makeList({chain[0]});
+                } else {
+                    Value node = Value::makeList({chain[0], chain[1]});
+                    for (size_t i = 2; i < chain.size(); ++i) {
+                        node = Value::makeList({node, chain[i]});
+                    }
+                    result = node;
+                }
+            } else {
                 std::list<Value> l;
                 for (const auto& v : chain) l.push_back(v);
-                return Value::makeList(l);
-            } else {
-                // Nested: 'A'B'C -> (A (B C)) (Right-associative)
-                // We need to unwrap the recursion for 'A'B'C...
-                // Simpler: build it from right to left
-                Value result = chain.back();
-                for (int i = (int)chain.size() - 2; i >= 0; --i) {
-                    result = Value::makeList({chain[i], result});
-                }
-                return result;
+                result = Value::makeList(l);
             }
         } else {
-            // Simple quote: 'A -> (quote A)
-            return Value::makeList({Value::makeAtom("quote"), first});
+            result = first;
         }
     }
 
-    // 2. Base Primary
-    Value base = parsePrimary();
-
-    // 3. Handle Middle or Trailing Quote Chain (Backward/Straight)
-    std::vector<Value> chain;
-    chain.push_back(base);
-    bool trailingQuote = false;
-
-    while (!isAtEndOfLine() && peek().type == TokenType::QUOTE && !peek().hasSpaceBefore) {
-        advance(); // consume '
-        if (isAtEndOfLine() || peek().hasSpaceBefore) {
-            trailingQuote = true;
-            break;
-        }
-        chain.push_back(parsePrimary());
-    }
-
-    if (chain.size() == 1) {
-        if (trailingQuote) return Value::makeList({chain[0]});
-        return chain[0];
-    }
-
-    if (trailingQuote) {
-        // Backward Nesting: A'B'C' -> ((A B) C) (Left-associative)
-        Value result = Value::makeList({chain[0], chain[1]});
-        for (size_t i = 2; i < chain.size(); ++i) {
-            result = Value::makeList({result, chain[i]});
-        }
-        return result;
-    } else {
-        // Straight Connection: A'B'C -> (A B C) (Flat list)
-        std::list<Value> l;
-        for (const auto& v : chain) l.push_back(v);
-        return Value::makeList(l);
-    }
+    return result;
 }
 
 Value Parser::parsePrimary() {
@@ -121,7 +164,7 @@ Value Parser::parsePrimary() {
     if (match(TokenType::LBRACE)) return parseDictOrSet();
 
     const Token& t = advance();
-    if (t.type == TokenType::STRING) return Value::makeList({Value::makeAtom("str"), Value::makeString(t.value)});
+    if (t.type == TokenType::STRING) return Value::makeList({Value::makeAtom("str"), Value::makeAtom(t.value)});
     if (t.type == TokenType::ATOM) return Value::makeAtom(t.value);
     
     throw std::runtime_error("Unexpected token in parsePrimary: " + t.value);
@@ -165,9 +208,16 @@ Value Parser::parseDictOrSet() {
                 it++;
                 Value val = (it != rawItems.end()) ? *it : Value::makeAtom("nil");
                 if (it != rawItems.end()) it++;
-                result.push_back(Value::makeList({Value::makeAtom("pair"), key, val}));
+                // Generate (quote (key val))
+                std::list<Value> pair;
+                pair.push_back(key);
+                pair.push_back(val);
+                result.push_back(Value::makeList({Value::makeAtom("quote"), Value::makeList(pair)}));
             } else {
-                result.push_back(Value::makeList({Value::makeAtom("pair"), key, Value::makeAtom("nil")}));
+                std::list<Value> pair;
+                pair.push_back(key);
+                pair.push_back(Value::makeAtom("nil"));
+                result.push_back(Value::makeList({Value::makeAtom("quote"), Value::makeList(pair)}));
                 if (it != rawItems.end()) it++;
             }
         }
@@ -179,8 +229,10 @@ Value Parser::parseDictOrSet() {
 }
 
 const Token& Parser::peek() const {
-    if (linePos_ >= lines_.size() || pos_ >= lines_[linePos_].size()) return eofToken_;
-    return lines_[linePos_][pos_];
+    if (linePos_ >= lines_.size()) return eofToken_;
+    const auto& line = lines_[linePos_];
+    if (pos_ >= line.size()) return eofToken_;
+    return line[pos_];
 }
 
 const Token& Parser::advance() {

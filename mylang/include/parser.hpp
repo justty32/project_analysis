@@ -20,7 +20,8 @@ private:
     size_t pos_;
     Token eofToken_;
 
-    Value parseLine();
+    std::vector<Value> parseWithIndent(int targetIndent);
+    Value parseLineContent();
     Value parseExpression();
     Value parsePrimary();
     Value parseList();

@@ -9,61 +9,8 @@
 #include "lexer.hpp"
 #include "parser.hpp"
 #include "value.hpp"
-
-void printValue(const Value& v, int indent = 0) {
-    switch(v.type) {
-        case Value::Type::ATOM: std::cout << v.as<std::string>(); break;
-        case Value::Type::STRING: std::cout << "\"" << v.as<std::string>() << "\""; break;
-        case Value::Type::NUMBER: std::cout << v.as<double>(); break;
-        case Value::Type::FUNC: std::cout << "<builtin function>"; break;
-        case Value::Type::LIST: {
-            std::cout << "(";
-            auto items = v.as<std::list<Value>>();
-            size_t i = 0;
-            for (auto const& item : items) {
-                printValue(item, indent + 1);
-                if (++i < items.size()) std::cout << " ";
-            }
-            std::cout << ")";
-            break;
-        }
-        case Value::Type::ARRAY: {
-            std::cout << "[";
-            auto items = v.as<std::vector<Value>>();
-            for (size_t i = 0; i < items.size(); ++i) {
-                printValue(items[i], indent + 1);
-                if (i < items.size() - 1) std::cout << " ";
-            }
-            std::cout << "]";
-            break;
-        }
-        case Value::Type::DICT: {
-            std::cout << "{";
-            auto dict = v.as<std::map<Value, Value>>();
-            size_t i = 0;
-            for (auto const& [key, val] : dict) {
-                printValue(key, indent + 1);
-                std::cout << ": ";
-                printValue(val, indent + 1);
-                if (++i < dict.size()) std::cout << " ";
-            }
-            std::cout << "}";
-            break;
-        }
-        case Value::Type::SET: {
-            std::cout << "{";
-            auto set = v.as<std::set<Value>>();
-            size_t i = 0;
-            for (auto const& item : set) {
-                printValue(item, indent + 1);
-                if (++i < set.size()) std::cout << " ";
-            }
-            std::cout << "}";
-            break;
-        }
-        default: std::cout << "?"; break;
-    }
-}
+#include "evaluator.hpp"
+#include "environment.hpp"
 
 std::string readFile(const std::string& path) {
     std::ifstream file(path);
@@ -75,13 +22,35 @@ std::string readFile(const std::string& path) {
     return buffer.str();
 }
 
+void printAST(const Value& v, int indent = 0) {
+    std::string space(indent * 2, ' ');
+    if (v.type == Value::Type::LIST) {
+        std::cout << space << "(\n";
+        auto list = v.as<std::list<Value>>();
+        for (const auto& item : list) {
+            printAST(item, indent + 1);
+        }
+        std::cout << space << ")\n";
+    } else if (v.type == Value::Type::ATOM) {
+        std::cout << space << v.as<std::string>() << "\n";
+    } else if (v.type == Value::Type::STRING) {
+        std::cout << space << "\"" << v.as<std::string>() << "\"\n";
+    } else if (v.type == Value::Type::NUMBER) {
+        std::cout << space << v.as<double>() << "\n";
+    }
+}
+
 int main(int argc, char* argv[]) {
-    std::string filePath = "tests/parser_suite.mylang";
+    std::string filePath = "tests/meta_test.mylang";
     if (argc > 1) {
         filePath = argv[1];
     }
 
-    std::cout << "=== Loading File: " << filePath << " ===\n";
+    std::cout << "=== Testing: " << filePath << " ===\n";
+
+    // Clear output.cpp for a fresh run
+    std::ofstream ofs("output.cpp", std::ios::trunc);
+    ofs.close();
 
     try {
         std::string source = readFile(filePath);
@@ -90,12 +59,22 @@ int main(int argc, char* argv[]) {
         Parser parser(tokenLines);
         auto values = parser.parse();
 
-        std::cout << "=== Parser Output (AST) ===\n";
-        for (size_t i = 0; i < values.size(); ++i) {
-            std::cout << "Line " << i + 1 << ": ";
-            printValue(values[i]);
-            std::cout << "\n";
+        std::cout << "--- AST Structure ---\n";
+        for (const auto& v : values) {
+            printAST(v);
         }
+
+        Environment globalEnv;
+        Evaluator::initGlobalEnv(globalEnv);
+
+        std::cout << "\n--- Evaluation Output ---\n";
+        for (const auto& v : values) {
+            Evaluator::evaluate(v, globalEnv);
+        }
+
+        std::cout << "\n=== Generated output.cpp ===\n";
+        std::cout << readFile("output.cpp") << std::endl;
+
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
         return 1;

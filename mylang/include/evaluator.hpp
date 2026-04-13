@@ -9,6 +9,7 @@ class Evaluator {
 public:
     static Value evaluate(const Value& val, Environment& env);
     static Value evalList(const std::list<Value>& list, Environment& env);
+    static void initGlobalEnv(Environment& env);
 };
 
 #endif

@@ -1,0 +1,35 @@
+root
+	branch1
+		leaf1
+		leaf2
+			sub_leaf1
+	branch2
+		leaf3
+	branch3
+multiple items in one line
+	child_with_many
+		item1 item2 item3
+		item4
+			item5
+
+nested_indents
+	level1
+		level2
+			level3
+	back_to_level1
+		level2_again
+
+quote_and_indent
+	'A'B
+		'C'D'E
+		F'G'
+	''
+		(nested list inside indented line)
+
+deep_tree
+	a
+		b
+			c
+				d
+					e
+	f
