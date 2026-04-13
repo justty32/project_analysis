@@ -61,12 +61,11 @@ Value Parser::parseLineContent() {
         expressions.push_back(parseExpression());
     }
     
-    // If a line is a single list/array/dict, return it directly to avoid double wrapping.
+    // If a line is a single list, return it directly to avoid double wrapping.
     // Example: (a b c) on a line should be (a b c), not ((a b c)).
     if (expressions.size() == 1) {
         const Value& first = expressions.front();
-        if (first.type == Value::Type::LIST || first.type == Value::Type::ARRAY || 
-            first.type == Value::Type::DICT || first.type == Value::Type::SET) {
+        if (first.type == Value::Type::LIST) {
             return first;
         }
     }

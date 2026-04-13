@@ -1,0 +1,18 @@
+def my_func
+	(print "start")
+	if (gt x 10)
+		(print "x is large")
+		(do_something x)
+	(print "end")
+
+(long_list_call
+	param1
+	param2
+	(sub_call 
+		a b c))
+
+{
+	key1: [1, 2, 3],
+	key2: "hello"
+}
+	sub_element_of_dict_line
