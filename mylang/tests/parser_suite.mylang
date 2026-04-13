@@ -1,0 +1,48 @@
+// === mylang Parser Specification Tests (Final Revision) ===
+
+// 1. 引號擴展規則 (Quotation Mark: ')
+// 前向巢狀 (Forward Nesting)
+'A              // -> (quote A)
+'A'B            // -> (A B)
+'A'B'C          // -> (A (B C))
+'A'B'C'D        // -> (A (B (C D)))
+
+// 後向巢狀 (Backward Nesting)
+A'              // -> (A)
+A'B'            // -> (A B)
+A'B'C'          // -> ((A B) C)
+A'B'C'D'        // -> (((A B) C) D)
+
+// 直接連接 (Straight Connection)
+A'B             // -> (A B)
+A'B'C           // -> (A B C)
+
+// 對稱規則 (Symmetry: Starts and ends with ')
+'A'B'           // -> (A B)
+'A'B'C'         // -> (A B C)
+
+// 特殊引號 (Special Quotes)
+''              // -> () (空 List)
+''A             // -> (quote A) (連續引號視為一個)
+'int32'123      // -> (int32 123) (型別前綴)
+
+// 2. 容器語法糖 (Containers: [] {})
+[a, b, c]               // -> (arr a b c)
+{a: 1, b: 2}            // -> (dict (pair a 1) (pair b 2))
+{a, b, c}               // -> (set a b c)
+
+// 3. 字串 (Double Quotation Marks: ")
+"hello world"           // -> (str "hello world")
+"hello world            // -> (str "hello world") (省略結尾引號)
+"hello\" world\n"       // -> (str "hello\" world\n")
+
+// 4. 跳脫字元 (Backslash: \)
+\'atom                  // -> 'atom (Symbol 包含引號)
+atom\ haha              // -> atom haha (Symbol 包含空格)
+line\
+continuation            // -> line continuation (續行測試，應補上空格)
+
+// 5. 優先級與特殊切分 (Priority & Splitting)
+(word)                  // -> (word) (切分為 "(", "word", ")")
+[a, b,c]                // -> (arr a b c) (中括號空格不具分隔功能)
+{a : 1, b:2}            // -> (dict (pair a 1) (pair b 2)) (大括號空格不具分隔功能)
