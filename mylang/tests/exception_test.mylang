@@ -1,0 +1,34 @@
+// 1. Manual Throw
+print "--- Manual Throw ---"
+try
+	throw "My custom error"
+catch e
+	print "Caught:" e
+
+// 2. System Exception (Division by zero)
+print "--- System Exception ---"
+try
+	(/ 10 0)
+catch err
+	print "System Error Caught:" err
+
+// 3. Normal Execution (No exception)
+print "--- Normal Flow ---"
+def res
+	try
+		(+ 10 20)
+	catch e
+		"should not happen"
+print "Result:" res
+
+// 4. Nested Try
+print "--- Nested Try ---"
+try
+	try
+		throw "Inner error"
+	catch e
+		begin
+			print "Inner catch:" e
+			throw (str "Re-thrown: " e)
+catch e2
+	print "Outer catch:" e2

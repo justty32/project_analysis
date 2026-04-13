@@ -5,7 +5,7 @@ while (lt i 5)
 	print "Loop index:" i
 
 // Test Container Operations
-def my_arr [1, 2, 3]
+def my_arr [1 2 3]
 print "Array length:" (len my_arr)
 print "Array at 1:" (at my_arr 1)
 
@@ -13,7 +13,7 @@ def my_arr (push my_arr 4)
 print "New Array:" my_arr
 print "New length:" (len my_arr)
 
-def my_dict {a: 1, b: 2}
+def my_dict {a: 1 b: 2}
 print "Dict length:" (len my_dict)
 print "Dict has a?" (has? my_dict 'a)
 print "Dict has c?" (has? my_dict 'c)
