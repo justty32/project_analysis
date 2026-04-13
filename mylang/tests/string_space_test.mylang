@@ -8,6 +8,3 @@ print "s1 is:" s1
 
 // Verify that it works with concatenation
 print (str "Part1" "    " "Part2")
-
-// Verify ntimes_space function directly
-print "Generating 5 spaces:>" (ntimes_space 5) "<"

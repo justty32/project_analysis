@@ -27,9 +27,9 @@ A'B'C           // -> (A B C)
 'int32'123      // -> (int32 123) (型別前綴)
 
 // 2. 容器語法糖 (Containers: [] {})
-[a, b, c]               // -> (arr a b c)
-{a: 1, b: 2}            // -> (dict (pair a 1) (pair b 2))
-{a, b, c}               // -> (set a b c)
+[a b c]               // -> (arr a b c)
+{a:1 b:2}            // -> (dict (pair a 1) (pair b 2))
+{a b c}               // -> (set a b c)
 
 // 3. 字串 (Double Quotation Marks: ")
 "hello world"           // -> (str "hello world")
@@ -44,5 +44,5 @@ continuation            // -> line continuation (續行測試，應補上空格)
 
 // 5. 優先級與特殊切分 (Priority & Splitting)
 (word)                  // -> (word) (切分為 "(", "word", ")")
-[a, b,c]                // -> (arr a b c) (中括號空格不具分隔功能)
-{a : 1, b:2}            // -> (dict (pair a 1) (pair b 2)) (大括號空格不具分隔功能)
+{a : 1 b: 2 c :3}            // -> (dict (pair a 1) (pair b 2) (pair c 3)) (用:與否來確定)
+{a: b:3} // -> 回報錯誤

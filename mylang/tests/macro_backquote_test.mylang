@@ -1,0 +1,26 @@
+// 1. Test Container Space Separator
+def my_arr [1 2 3]
+print "Array:" my_arr
+
+def my_dict {a: 1 b: 2}
+print "Dict:" my_dict
+
+// 2. Test Backquote and Unquote
+def x 10
+def y 20
+def code `(+ ,x ,y)
+print "Generated code:" code
+print "Executed code:" (exec code)
+
+// 3. Test Unquote-Splicing
+def items [100 200]
+def big_list `(begin ,@items 300)
+print "Spliced list:" big_list
+
+// 4. Advanced Macro using Backquote
+def_macro my_let (var val body)
+	`((lambda (,var) ,body) ,val)
+
+print "--- Testing my_let ---"
+my_let z 50
+	print "z is:" z

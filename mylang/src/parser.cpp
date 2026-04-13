@@ -74,85 +74,63 @@ Value Parser::parseLineContent() {
 }
 
 Value Parser::parseExpression() {
-    Value result;
+    if (isAtEndOfLine()) throw std::runtime_error("Unexpected end of line");
 
-    if (!isAtEndOfLine() && peek().type == TokenType::QUOTE) {
-        advance(); 
+    // Handle unary prefixes: ', `, ,, ,@
+    if (peek().type == TokenType::QUOTE || 
+        peek().type == TokenType::BACKQUOTE || 
+        peek().type == TokenType::UNQUOTE || 
+        peek().type == TokenType::UNQUOTE_SPLICING) {
         
-        if (!isAtEndOfLine() && peek().type == TokenType::QUOTE && !peek().hasSpaceBefore) {
+        Token t = advance();
+        std::string op;
+        if (t.type == TokenType::QUOTE) op = "quote";
+        else if (t.type == TokenType::BACKQUOTE) op = "backquote";
+        else if (t.type == TokenType::UNQUOTE) op = "unquote";
+        else if (t.type == TokenType::UNQUOTE_SPLICING) op = "unquote_splicing";
+
+        // Special case for '': handle ''A as 'A
+        if (t.type == TokenType::QUOTE && !isAtEndOfLine() && peek().type == TokenType::QUOTE && !peek().hasSpaceBefore) {
             advance();
-            // Check if it's the end of an atom/line or the end of a paren list
             if (isAtEndOfLine() || peek().hasSpaceBefore || peek().type == TokenType::RPAREN) {
-                result = Value::makeList({});
-            } else {
-                result = Value::makeList({Value::makeAtom("quote"), parseExpression()});
+                return Value::makeList({});
             }
-        } else {
-            Value first = parsePrimary();
-            if (!isAtEndOfLine() && peek().type == TokenType::QUOTE && !peek().hasSpaceBefore) {
-                std::vector<Value> chain;
-                chain.push_back(first);
-                bool trailingQuote = false;
-
-                while (!isAtEndOfLine() && peek().type == TokenType::QUOTE && !peek().hasSpaceBefore) {
-                    advance();
-                    if (isAtEndOfLine() || peek().hasSpaceBefore || peek().type == TokenType::RPAREN) {
-                        trailingQuote = true; break;
-                    }
-                    chain.push_back(parsePrimary());
-                }
-
-                if (trailingQuote) {
-                    std::list<Value> l;
-                    for (const auto& v : chain) l.push_back(v);
-                    result = Value::makeList(l);
-                } else {
-                    Value node = chain.back();
-                    for (int i = (int)chain.size() - 2; i >= 0; --i) {
-                        node = Value::makeList({chain[i], node});
-                    }
-                    result = node;
-                }
-            } else {
-                result = Value::makeList({Value::makeAtom("quote"), first});
-            }
+            return Value::makeList({Value::makeAtom("quote"), parseExpression()});
         }
-    } else {
-        Value first = parsePrimary();
-        if (!isAtEndOfLine() && peek().type == TokenType::QUOTE && !peek().hasSpaceBefore) {
-            std::vector<Value> chain;
-            chain.push_back(first);
-            bool trailingQuote = false;
 
-            while (!isAtEndOfLine() && peek().type == TokenType::QUOTE && !peek().hasSpaceBefore) {
-                advance();
-                if (isAtEndOfLine() || peek().hasSpaceBefore || peek().type == TokenType::RPAREN) {
-                    trailingQuote = true; break;
-                }
-                chain.push_back(parsePrimary());
-            }
+        Value expr = parseExpression();
+        return Value::makeList({Value::makeAtom(op), expr});
+    }
 
-            if (trailingQuote) {
-                if (chain.size() == 1) {
-                    result = Value::makeList({chain[0]});
-                } else {
-                    Value node = Value::makeList({chain[0], chain[1]});
-                    for (size_t i = 2; i < chain.size(); ++i) {
-                        node = Value::makeList({node, chain[i]});
-                    }
-                    result = node;
-                }
-            } else {
-                std::list<Value> l;
-                for (const auto& v : chain) l.push_back(v);
-                result = Value::makeList(l);
+    Value first = parsePrimary();
+    
+    // Handle quote-based list shorthand: A'B -> (A B)
+    if (!isAtEndOfLine() && peek().type == TokenType::QUOTE && !peek().hasSpaceBefore) {
+        std::vector<Value> chain;
+        chain.push_back(first);
+        bool trailingQuote = false;
+
+        while (!isAtEndOfLine() && peek().type == TokenType::QUOTE && !peek().hasSpaceBefore) {
+            advance();
+            if (isAtEndOfLine() || peek().hasSpaceBefore || peek().type == TokenType::RPAREN) {
+                trailingQuote = true; break;
             }
+            chain.push_back(parsePrimary());
+        }
+
+        if (trailingQuote) {
+            if (chain.size() == 1) return Value::makeList({chain[0]});
+            Value node = Value::makeList({chain[0], chain[1]});
+            for (size_t i = 2; i < chain.size(); ++i) node = Value::makeList({node, chain[i]});
+            return node;
         } else {
-            result = first;
+            std::list<Value> l;
+            for (const auto& v : chain) l.push_back(v);
+            return Value::makeList(l);
         }
     }
 
-    return result;
+    return first;
 }
 
 Value Parser::parsePrimary() {
@@ -164,31 +142,7 @@ Value Parser::parsePrimary() {
 
     const Token& t = advance();
     if (t.type == TokenType::STRING) {
-        std::list<Value> strList;
-        strList.push_back(Value::makeAtom("str"));
-        
-        std::string val = t.value;
-        std::string current;
-        for (size_t i = 0; i < val.length(); ++i) {
-            if (val[i] == ' ') {
-                if (!current.empty()) {
-                    strList.push_back(Value::makeAtom(current));
-                    current.clear();
-                }
-                int count = 0;
-                while (i < val.length() && val[i] == ' ') {
-                    count++;
-                    i++;
-                }
-                i--; // Step back for loop increment
-                std::list<Value> spaceList = {Value::makeAtom("ntimes_space"), Value::makeNumber(count)};
-                strList.push_back(Value::makeList(spaceList));
-            } else {
-                current += val[i];
-            }
-        }
-        if (!current.empty()) strList.push_back(Value::makeAtom(current));
-        return Value::makeList(strList);
+        return Value::makeList({Value::makeAtom("str"), Value::makeString(t.value)});
     }
     if (t.type == TokenType::ATOM) return Value::makeAtom(t.value);
     
@@ -206,7 +160,8 @@ Value Parser::parseArray() {
     std::list<Value> items;
     items.push_back(Value::makeAtom("arr"));
     while (!isAtEndOfLine() && peek().type != TokenType::RBRACKET) {
-        if (peek().type == TokenType::COMMA) { advance(); continue; }
+        // Commas are no longer treated as separators by the Lexer (they are UNQUOTE now)
+        // If a comma appears here without being part of a backquote, it will be parsed as (unquote ...)
         items.push_back(parseExpression());
     }
     if (!match(TokenType::RBRACKET)) throw std::runtime_error("Unclosed bracket");
@@ -217,7 +172,6 @@ Value Parser::parseDictOrSet() {
     std::list<Value> rawItems;
     bool hasColon = false;
     while (!isAtEndOfLine() && peek().type != TokenType::RBRACE) {
-        if (peek().type == TokenType::COMMA) { advance(); continue; }
         if (peek().type == TokenType::COLON) { hasColon = true; rawItems.push_back(Value::makeAtom(":")); advance(); continue; }
         rawItems.push_back(parseExpression());
     }
@@ -233,17 +187,11 @@ Value Parser::parseDictOrSet() {
                 it++;
                 Value val = (it != rawItems.end()) ? *it : Value::makeAtom("nil");
                 if (it != rawItems.end()) it++;
-                // Generate (quote (key val))
-                std::list<Value> pair;
-                pair.push_back(key);
-                pair.push_back(val);
+                std::list<Value> pair = {key, val};
                 result.push_back(Value::makeList({Value::makeAtom("quote"), Value::makeList(pair)}));
             } else {
-                std::list<Value> pair;
-                pair.push_back(key);
-                pair.push_back(Value::makeAtom("nil"));
+                std::list<Value> pair = {key, Value::makeAtom("nil")};
                 result.push_back(Value::makeList({Value::makeAtom("quote"), Value::makeList(pair)}));
-                if (it != rawItems.end()) it++;
             }
         }
     } else {

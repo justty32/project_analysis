@@ -84,6 +84,21 @@ std::vector<std::vector<Token>> Lexer::tokenize() {
             continue;
         }
 
+        if (c == '`') {
+            pushToken({TokenType::BACKQUOTE, std::string(1, advance()), line_, indent_, hasSpace});
+            continue;
+        }
+
+        if (c == ',') {
+            if (peekNext() == '@') {
+                std::string val; val += advance(); val += advance();
+                pushToken({TokenType::UNQUOTE_SPLICING, val, line_, indent_, hasSpace});
+            } else {
+                pushToken({TokenType::UNQUOTE, std::string(1, advance()), line_, indent_, hasSpace});
+            }
+            continue;
+        }
+
         if (c == '(') { pushToken({TokenType::LPAREN, std::string(1, advance()), line_, indent_, hasSpace}); continue; }
         if (c == ')') { pushToken({TokenType::RPAREN, std::string(1, advance()), line_, indent_, hasSpace}); continue; }
         if (c == '[') { pushToken({TokenType::LBRACKET, std::string(1, advance()), line_, indent_, hasSpace}); continue; }
@@ -91,7 +106,6 @@ std::vector<std::vector<Token>> Lexer::tokenize() {
         if (c == '{') { pushToken({TokenType::LBRACE, std::string(1, advance()), line_, indent_, hasSpace}); continue; }
         if (c == '}') { pushToken({TokenType::RBRACE, std::string(1, advance()), line_, indent_, hasSpace}); continue; }
         if (c == ':') { pushToken({TokenType::COLON, std::string(1, advance()), line_, indent_, hasSpace}); continue; }
-        if (c == ',') { pushToken({TokenType::COMMA, std::string(1, advance()), line_, indent_, hasSpace}); continue; }
 
         if (c == '\\') {
             if (peekNext() == '\n') {

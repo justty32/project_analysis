@@ -14,8 +14,10 @@ enum class TokenType {
     LBRACE,
     RBRACE,
     QUOTE,
-    COLON, // For dict k:v
-    COMMA  // For separators
+    BACKQUOTE,
+    UNQUOTE,
+    UNQUOTE_SPLICING,
+    COLON // For dict k:v
 };
 
 struct Token {

@@ -35,7 +35,7 @@ void print_value(const Value& v) {
         auto a = v.as<std::vector<Value>>();
         for (size_t i = 0; i < a.size(); ++i) {
             print_value(a[i]);
-            if (i < a.size() - 1) std::cout << ", ";
+            if (i < a.size() - 1) std::cout << " ";
         }
         std::cout << "]";
     } else if (v.type == Value::Type::DICT) {
@@ -43,7 +43,7 @@ void print_value(const Value& v) {
         auto m = v.as<std::map<Value, Value>>();
         for (auto it = m.begin(); it != m.end(); ++it) {
             print_value(it->first); std::cout << ": "; print_value(it->second);
-            if (std::next(it) != m.end()) std::cout << ", ";
+            if (std::next(it) != m.end()) std::cout << " ";
         }
         std::cout << "}";
     } else if (v.type == Value::Type::SET) {
@@ -51,10 +51,55 @@ void print_value(const Value& v) {
         auto s = v.as<std::set<Value>>();
         for (auto it = s.begin(); it != s.end(); ++it) {
             print_value(*it);
-            if (std::next(it) != s.end()) std::cout << ", ";
+            if (std::next(it) != s.end()) std::cout << " ";
         }
         std::cout << "}";
     } else if (v.type == Value::Type::NIL) std::cout << "nil";
+}
+
+Value evalBackquote(const Value& val, std::shared_ptr<Environment>& env) {
+    if (val.type != Value::Type::LIST) return val;
+    auto list = val.as<std::list<Value>>();
+    if (list.empty()) return val;
+
+    Value first = list.front();
+    if (first.type == Value::Type::ATOM) {
+        std::string op = first.as<std::string>();
+        if (op == "unquote") {
+            if (list.size() < 2) return Value::makeNil();
+            return Evaluator::evaluate(*std::next(list.begin()), env);
+        }
+        if (op == "unquote_splicing") {
+            // This should normally be handled by the parent list's loop.
+            // If called directly, just evaluate and return.
+            if (list.size() < 2) return Value::makeNil();
+            return Evaluator::evaluate(*std::next(list.begin()), env);
+        }
+    }
+
+    std::list<Value> res;
+    for (const auto& item : list) {
+        if (item.type == Value::Type::LIST) {
+            auto sublist = item.as<std::list<Value>>();
+            if (!sublist.empty() && sublist.front().type == Value::Type::ATOM && sublist.front().as<std::string>() == "unquote_splicing") {
+                if (sublist.size() >= 2) {
+                    Value spliced = Evaluator::evaluate(*std::next(sublist.begin()), env);
+                    if (spliced.type == Value::Type::LIST) {
+                        auto l = spliced.as<std::list<Value>>();
+                        res.insert(res.end(), l.begin(), l.end());
+                    } else if (spliced.type == Value::Type::ARRAY) {
+                        auto v = spliced.as<std::vector<Value>>();
+                        for (const auto& x : v) res.push_back(x);
+                    } else {
+                        res.push_back(spliced);
+                    }
+                }
+                continue;
+            }
+        }
+        res.push_back(evalBackquote(item, env));
+    }
+    return Value::makeList(res);
 }
 
 Value Evaluator::evaluate(const Value& val, std::shared_ptr<Environment>& env) {
@@ -74,9 +119,16 @@ Value Evaluator::evaluate(const Value& val, std::shared_ptr<Environment>& env) {
         auto list = val.as<std::list<Value>>();
         if (list.empty()) return val;
         Value first = list.front();
-        if (first.type == Value::Type::ATOM && first.as<std::string>() == "quote") {
-            if (list.size() < 2) return Value::makeNil();
-            return *std::next(list.begin());
+        if (first.type == Value::Type::ATOM) {
+            std::string op = first.as<std::string>();
+            if (op == "quote") {
+                if (list.size() < 2) return Value::makeNil();
+                return *std::next(list.begin());
+            }
+            if (op == "backquote") {
+                if (list.size() < 2) return Value::makeNil();
+                return evalBackquote(*std::next(list.begin()), env);
+            }
         }
         return evalList(list, env);
     }
@@ -205,7 +257,6 @@ void Evaluator::initGlobalEnv(std::shared_ptr<Environment>& env) {
         if (n <= 0) return Value::makeString("");
         return Value::makeString(std::string(n, ' '));
     }));
-
     env->define("def", Value::makeMacro(builtin_def));
     env->define("lambda", Value::makeMacro(builtin_lambda));
     env->define("def_macro", Value::makeMacro(builtin_def_macro));
@@ -329,7 +380,7 @@ void Evaluator::initGlobalEnv(std::shared_ptr<Environment>& env) {
     env->define("io_write", Value::makeFunc([](std::shared_ptr<Environment>&, const std::vector<Value>& args) {
         if (args.size() < 2 || (args[0].type != Value::Type::STRING && args[0].type != Value::Type::ATOM)) return Value::makeNil();
         std::ofstream f(args[0].as<std::string>()); if (!f.is_open()) return Value::makeNil();
-        Value v = args[1]; if (v.type == Value::Type::STRING || v.type == Value::Type::ATOM) f << v.as<std::string>();
+        Value v = args[1]; if (v.type == Value::Type::STRING || v.type == Value::Type::ATOM) f << v.as<std::string>();      
         else if (v.type == Value::Type::NUMBER) { double d = v.as<double>(); if (d == (long long)d) f << (long long)d; else f << d; }
         else f << "<obj>"; return Value::makeAtom("true");
     }));
@@ -346,7 +397,7 @@ void Evaluator::initGlobalEnv(std::shared_ptr<Environment>& env) {
     env->define("/", Value::makeFunc([](std::shared_ptr<Environment>&, const std::vector<Value>& args) {
         if (args.empty()) return Value::makeNumber(0);
         double res = evaluate_to_double(args[0]); for (size_t i = 1; i < args.size(); ++i) {
-            double v = evaluate_to_double(args[i]); if (v == 0) throw std::runtime_error("Division by zero"); res /= v;
+            double v = evaluate_to_double(args[i]); if (v == 0) throw std::runtime_error("Division by zero"); res /= v;     
         } return Value::makeNumber(res);
     }));
     env->define("mod", Value::makeFunc([](std::shared_ptr<Environment>&, const std::vector<Value>& args) {

@@ -10,5 +10,5 @@ continuation
 (nested
 	tab_inside_paren)
 [array, with, comma]
-{key: value, set_item}
+{key: value set_item}
 .
