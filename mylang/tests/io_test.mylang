@@ -1,0 +1,20 @@
+// Test File IO
+def test_file "test_output.txt"
+
+print "Checking if" test_file "exists..."
+print "Exists?" (io_exists? test_file)
+
+print "Writing content to" test_file "..."
+io_write test_file "Hello from mylang IO!"
+
+print "Checking again..."
+print "Exists?" (io_exists? test_file)
+
+print "Reading content back:"
+def content (io_read test_file)
+print "Content:" content
+
+// Verify comparison with strings
+if (eq content "Hello from mylang IO!")
+	print "IO verification SUCCESS"
+	print "IO verification FAILED"

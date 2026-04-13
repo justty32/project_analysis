@@ -1,0 +1,40 @@
+// 1. Recursive Function
+def_func factorial (n)
+	if (<= n 1)
+		1
+		(* n (factorial (- n 1)))
+
+print "Factorial of 5:" (factorial 5)
+
+// 2. Closure (Counter)
+def_func make_counter (start)
+	def count start
+	lambda ()
+		set! count (+ count 1)
+		count
+
+def c1 (make_counter 10)
+print "Counter c1:" (c1)
+print "Counter c1:" (c1)
+
+// 3. Advanced Macro: for-each
+// Syntax: for_each item in list body
+def_macro for_each (item dummy collection body)
+	list begin
+		def idx 0
+		while (< idx (len collection))
+			def item (at collection idx)
+			body
+			set! idx (+ idx 1)
+
+print "--- Testing for_each ---"
+def my_list [10, 20, 30]
+for_each x in my_list
+	print "Item:" x
+
+// 4. File IO and Logic
+def log_file "log.txt"
+io_write log_file "Initial log entry"
+if (io_exists? log_file)
+	print "Log file created successfully"
+	print "Log file missing"

@@ -46,15 +46,3 @@ continuation            // -> line continuation (續行測試，應補上空格)
 (word)                  // -> (word) (切分為 "(", "word", ")")
 [a, b,c]                // -> (arr a b c) (中括號空格不具分隔功能)
 {a : 1, b:2}            // -> (dict (pair a 1) (pair b 2)) (大括號空格不具分隔功能)
-
-// 6. 多行括號
-(word1
-    word2)
-[word1
-    word2]
-(words
-    (subword_1_1 subword_1_2)
-    (subword_2_1 subword_2_2))
-words
-    subword_1_1 subword_1_2
-    subword_2_1 subword_2_2

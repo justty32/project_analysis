@@ -14,7 +14,7 @@
 struct Value;
 class Environment;
 
-using NativeFunc = std::function<Value(Environment&, const std::vector<Value>&)>;
+using NativeFunc = std::function<Value(std::shared_ptr<Environment>&, const std::vector<Value>&)>;
 
 struct Value {
     enum class Type {
@@ -51,11 +51,23 @@ struct Value {
     static Value makeFunc(NativeFunc f) { return {f, Type::FUNC}; }
     static Value makeMacro(NativeFunc f) { return {f, Type::MACRO}; }
     
+    static Value makeUserFunc(const std::shared_ptr<struct UserProcedure>& p);
+    static Value makeUserMacro(const std::shared_ptr<struct UserProcedure>& p);
+
     static Value makeList(const std::list<Value>& v) { return {v, Type::LIST}; }
     static Value makeArray(const std::vector<Value>& v) { return {v, Type::ARRAY}; }
     static Value makeDict(const std::map<Value, Value>& m) { return {m, Type::DICT}; }
     static Value makeSet(const std::set<Value>& s) { return {s, Type::SET}; }
 };
+
+struct UserProcedure {
+    std::vector<std::string> params;
+    Value body;
+    std::shared_ptr<Environment> closure;
+};
+
+inline Value Value::makeUserFunc(const std::shared_ptr<UserProcedure>& p) { return {p, Type::USER_FUNC}; }
+inline Value Value::makeUserMacro(const std::shared_ptr<UserProcedure>& p) { return {p, Type::USER_MACRO}; }
 
 bool operator<(const Value& lhs, const Value& rhs);
 bool operator==(const Value& lhs, const Value& rhs);

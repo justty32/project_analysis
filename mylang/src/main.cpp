@@ -14,44 +14,13 @@
 
 std::string readFile(const std::string& path) {
     std::ifstream file(path);
-    if (!file.is_open()) {
-        throw std::runtime_error("Could not open file: " + path);
-    }
+    if (!file.is_open()) throw std::runtime_error("Could not open file: " + path);
     std::stringstream buffer;
     buffer << file.rdbuf();
     return buffer.str();
 }
 
-void printAST(const Value& v, int indent = 0) {
-    std::string space(indent * 2, ' ');
-    if (v.type == Value::Type::LIST) {
-        std::cout << space << "(\n";
-        auto list = v.as<std::list<Value>>();
-        for (const auto& item : list) {
-            printAST(item, indent + 1);
-        }
-        std::cout << space << ")\n";
-    } else if (v.type == Value::Type::ATOM) {
-        std::cout << space << v.as<std::string>() << "\n";
-    } else if (v.type == Value::Type::STRING) {
-        std::cout << space << "\"" << v.as<std::string>() << "\"\n";
-    } else if (v.type == Value::Type::NUMBER) {
-        std::cout << space << v.as<double>() << "\n";
-    }
-}
-
-int main(int argc, char* argv[]) {
-    std::string filePath = "tests/meta_test.mylang";
-    if (argc > 1) {
-        filePath = argv[1];
-    }
-
-    std::cout << "=== Testing: " << filePath << " ===\n";
-
-    // Clear output.cpp for a fresh run
-    std::ofstream ofs("output.cpp", std::ios::trunc);
-    ofs.close();
-
+void runScript(const std::string& filePath, std::shared_ptr<Environment>& env) {
     try {
         std::string source = readFile(filePath);
         Lexer lexer(source);
@@ -59,26 +28,73 @@ int main(int argc, char* argv[]) {
         Parser parser(tokenLines);
         auto values = parser.parse();
 
-        std::cout << "--- AST Structure ---\n";
         for (const auto& v : values) {
-            printAST(v);
+            Evaluator::evaluate(v, env);
         }
-
-        Environment globalEnv;
-        Evaluator::initGlobalEnv(globalEnv);
-
-        std::cout << "\n--- Evaluation Output ---\n";
-        for (const auto& v : values) {
-            Evaluator::evaluate(v, globalEnv);
-        }
-
-        std::cout << "\n=== Generated output.cpp ===\n";
-        std::cout << readFile("output.cpp") << std::endl;
-
     } catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
-        return 1;
+        std::cerr << "Error running script: " << e.what() << std::endl;
     }
+}
 
+void repl() {
+    auto globalEnv = std::make_shared<Environment>();
+    Evaluator::initGlobalEnv(globalEnv);
+
+    std::cout << "mylang REPL v0.1\n";
+    std::cout << "Type 'exit' or Ctrl-C to quit.\n";
+
+    std::string line;
+    std::string multilineBuffer;
+    int bracketDepth = 0;
+
+    while (true) {
+        if (multilineBuffer.empty()) std::cout << ">> ";
+        else std::cout << ".. ";
+
+        if (!std::getline(std::cin, line)) break;
+        if (line == "exit") break;
+        if (line.empty() && multilineBuffer.empty()) continue;
+
+        multilineBuffer += line + "\n";
+
+        // Simple bracket/parenthesis check to support multi-line entry
+        for (char c : line) {
+            if (c == '(' || c == '[' || c == '{') bracketDepth++;
+            else if (c == ')' || c == ']' || c == '}') bracketDepth--;
+        }
+
+        if (bracketDepth <= 0) {
+            try {
+                Lexer lexer(multilineBuffer);
+                auto tokenLines = lexer.tokenize();
+                if (!tokenLines.empty()) {
+                    Parser parser(tokenLines);
+                    auto values = parser.parse();
+                    for (const auto& v : values) {
+                        Value res = Evaluator::evaluate(v, globalEnv);
+                        if (res.type != Value::Type::NIL) {
+                            std::cout << "=> ";
+                            print_value(res);
+                            std::cout << std::endl;
+                        }
+                    }
+                }
+            } catch (const std::exception& e) {
+                std::cerr << "Error: " << e.what() << std::endl;
+            }
+            multilineBuffer.clear();
+            bracketDepth = 0;
+        }
+    }
+}
+
+int main(int argc, char* argv[]) {
+    if (argc > 1) {
+        auto globalEnv = std::make_shared<Environment>();
+        Evaluator::initGlobalEnv(globalEnv);
+        runScript(argv[1], globalEnv);
+    } else {
+        repl();
+    }
     return 0;
 }

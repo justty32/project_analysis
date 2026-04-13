@@ -1,0 +1,21 @@
+// Test Comparison Operators
+print "--- Math Symbols ---"
+print "10 == 10 :" (== 10 10)
+print "10 != 5  :" (!= 10 5)
+print "10 > 5   :" (> 10 5)
+print "5 < 10   :" (< 5 10)
+print "10 >= 10 :" (>= 10 10)
+print "5 <= 5   :" (<= 5 5)
+
+print "--- String/Mixed ---"
+print "\"hi\" == \"hi\" :" (== "hi" "hi")
+print "\"hi\" != \"ho\" :" (!= "hi" "ho")
+print "10 == \"10\"   :" (== 10 "10") // Should be false due to type mismatch in Value::operator==
+
+print "--- Word-based (Legacy) ---"
+print "10 eq 10 :" (eq 10 10)
+print "10 ne 5  :" (ne 10 5)
+print "10 gt 5  :" (gt 10 5)
+print "5 lt 10  :" (lt 5 10)
+print "10 ge 10 :" (ge 10 10)
+print "5 le 5   :" (le 5 5)

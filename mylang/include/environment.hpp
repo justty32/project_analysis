@@ -6,9 +6,9 @@
 #include <string>
 #include <stdexcept>
 
-class Environment {
+class Environment : public std::enable_shared_from_this<Environment> {
 public:
-    Environment(Environment* parent = nullptr) : parent_(parent) {}
+    Environment(std::shared_ptr<Environment> parent = nullptr) : parent_(parent) {}
 
     void define(const std::string& name, Value val) {
         variables_[name] = val;
@@ -32,13 +32,13 @@ public:
         } else if (parent_) {
             parent_->set(name, val);
         } else {
-            define(name, val); // Default to local define if not found in chain
+            define(name, val);
         }
     }
 
 private:
     std::map<std::string, Value> variables_;
-    Environment* parent_;
+    std::shared_ptr<Environment> parent_;
 };
 
 #endif
